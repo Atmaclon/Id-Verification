@@ -8,10 +8,12 @@ import face_recognition
 import math
 import io
 import base64
+from ultralytics import YOLO
 
 app=Flask(__name__)
-
-hostip="192.168.161.153"
+model = YOLO("l_version_1_300.pt")
+classNames = ["fake", "real"]
+hostip="192.168.0.103"
 
 @app.route('/')
 def index():
@@ -63,6 +65,29 @@ def check(myData,image,face_locations):
     #     return "Face detected and verified. You can move on!!!!!"
     # else:
     #     return "Invalid user face please restart the login process."
+
+def lively(img):
+    confidence=0.6
+    threshold=0.80
+    fake_percentage=0
+    results = model(img, stream=True, verbose=False)
+    results=list(results)
+    r=results[0]
+    boxes = r.boxes
+    for box in boxes:
+        conf = math.ceil((box.conf[0] * 100)) / 100
+            # Class Name
+        cls = int(box.cls[0])
+        if conf > confidence:
+
+            if classNames[cls] == 'fake':
+                fake_percentage += conf
+    print(fake_percentage)
+    if fake_percentage > threshold:
+        return False
+    else:
+        return True
+
 
 @app.route('/validateReg',methods=['POST'])
 def validateReg():
@@ -124,8 +149,12 @@ def gen(camera):
                 faceShown=True
         
         if(idShown and faceShown):
+            ifPhoto=lively(img)
             if(check(myData,img,face_locations)):
-                cv2.putText(img,"Verified!!!!",(6,26),cv2.QT_FONT_BLACK,0.8,(255,255,255),1)
+                if not ifPhoto:
+                    cv2.putText(img,"Verified!!!!",(6,26),cv2.QT_FONT_BLACK,0.8,(255,255,255),1)
+                else:
+                    cv2.putText(img,"DO NOT USE A PHOTO!",(6,26),cv2.QT_FONT_BLACK,0.8,(255,255,255),1)
             else:
                 cv2.putText(img,"Your identity does not match our database!!!",(6,26),cv2.QT_FONT_BLACK,0.8,(255,255,255),1)
         elif(idShown):
@@ -152,4 +181,8 @@ def video_feed():
 if __name__ == '__main__':
     app.run(host=hostip,debug =True)
     #app.run(host=hostip,debug =True, ssl_context=('server.crt', 'server.key'))
+
+#frontend
+
+
     
